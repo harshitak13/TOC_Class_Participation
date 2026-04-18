@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CYK Parser Pro v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+/* ══════════════════ TOKENS ══════════════════ */
+:root{
+  --bg:#07090f;--bg2:#0e1117;--bg3:#141720;--bg4:#1c2030;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);
+  --text:#dde2f0;--muted:#5a617a;--muted2:#8890a8;
+  --purple:#8b7cf8;--purple2:#b5acff;--purple3:rgba(139,124,248,0.15);
+  --teal:#22d3b8;--teal3:rgba(34,211,184,0.12);
+  --green:#34d399;--green3:rgba(52,211,153,0.12);
+  --red:#f87171;--red3:rgba(248,113,113,0.1);
+  --amber:#fbbf24;--amber3:rgba(251,191,36,0.1);
+  --blue:#60a5fa;--blue3:rgba(96,165,250,0.1);
+  --pink:#f472b6;--pink3:rgba(244,114,182,0.1);
+  --mono:'IBM Plex Mono',monospace;--sans:'Outfit',sans-serif;
+  --r:8px;--r2:12px;--sidebar:300px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;font-size:14px;overflow:hidden}
+
+/* ── Layout ── */
+.layout{display:grid;grid-template-columns:var(--sidebar) 1fr;height:100vh;overflow:hidden}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;height:100vh;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.main{display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:0}
+
+/* ── Sidebar ── */
+.sb-head{padding:16px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-logo{font-family:var(--mono);font-size:8px;letter-spacing:3px;color:var(--purple);text-transform:uppercase;margin-bottom:4px}
+.sb-title{font-size:17px;font-weight:700;line-height:1.15;color:var(--text)}
+.sb-title em{color:var(--purple2);font-style:normal}
+.sb-badges{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.sb-badge{font-size:8px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;background:var(--purple3);color:var(--purple2);border:1px solid rgba(139,124,248,0.25)}
+.sb-badge.green{background:var(--green3);color:var(--green);border-color:rgba(52,211,153,.25)}
+.sb-badge.amber{background:var(--amber3);color:var(--amber);border-color:rgba(251,191,36,.25)}
+
+.sb-sec{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-sec-label{font-size:9px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.sb-sec-label span{flex:1}
+.sb-sec-label button{font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:3px;border:1px solid var(--border2);background:transparent;color:var(--muted2);cursor:pointer;transition:all .15s}
+.sb-sec-label button:hover{color:var(--purple2);border-color:var(--purple)}
+
+.presets{display:flex;flex-wrap:wrap;gap:4px}
+.pre-btn{font-size:9px;font-family:var(--mono);padding:3px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg3);color:var(--muted2);cursor:pointer;transition:all .15s}
+.pre-btn:hover,.pre-btn.active{background:var(--purple3);color:var(--purple2);border-color:var(--purple)}
+
+.rule-list{display:flex;flex-direction:column;gap:4px;margin-bottom:6px;max-height:220px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.rule-row{display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:4px 6px;transition:border-color .15s}
+.rule-row:focus-within{border-color:var(--purple)}
+.rule-row.fired{border-color:var(--amber);background:var(--amber3)}
+.rlhs{width:26px;text-align:center;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--purple2);background:transparent;border:none;outline:none}
+.rarrow{color:var(--muted);font-size:12px;flex-shrink:0}
+.rrhs{flex:1;font-family:var(--mono);font-size:11px;background:transparent;border:none;outline:none;color:var(--text)}
+.rdel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;transition:color .15s}
+.rdel:hover{color:var(--red)}
+.add-btn{width:100%;padding:5px;background:transparent;border:1px dashed var(--border2);border-radius:var(--r);color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s;font-family:var(--sans)}
+.add-btn:hover{border-color:var(--purple);color:var(--purple2)}
+
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:7px}
+.field label{font-size:9px;font-weight:600;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+.fi{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:6px 8px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;width:100%;transition:border-color .15s}
+.fi:focus{border-color:var(--purple)}
+
+.parse-btn{margin:10px 14px 4px;padding:10px;background:var(--purple);border:none;border-radius:var(--r);color:#fff;font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.2px;width:calc(100% - 28px);display:flex;align-items:center;justify-content:center;gap:6px}
+.parse-btn:hover{background:var(--purple2);transform:translateY(-1px)}
+.parse-btn.loading{background:var(--bg4);color:var(--muted);cursor:not-allowed}
+
+.action-row{display:flex;gap:6px;margin:0 14px 8px;flex-wrap:wrap}
+.sm-btn{flex:1;padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--muted2);font-size:10px;cursor:pointer;transition:all .15s;font-family:var(--sans);text-align:center;white-space:nowrap}
+.sm-btn:hover{border-color:var(--teal);color:var(--teal)}
+
+.err{margin:0 14px 8px;font-size:11px;color:var(--red);background:var(--red3);border:1px solid rgba(248,113,113,0.2);padding:6px 8px;border-radius:var(--r);display:none}
+.cnf-note{margin:0 14px 8px;font-size:9px;font-family:var(--mono);color:var(--muted2);background:var(--bg3);border:1px solid var(--border);padding:7px 9px;border-radius:var(--r);line-height:1.7}
+.cnf-note b{color:var(--teal)}
+
+/* ── Status bar ── */
+.status-bar{height:28px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 14px;font-size:10px;font-family:var(--mono);color:var(--muted2);flex-shrink:0}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.status-dot.offline{background:var(--red)}
+.status-sep{color:var(--border2)}
+
+/* ── Main header ── */
+.mhead{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:48px;flex-shrink:0}
+.verdict{display:none;align-items:center;gap:7px;padding:5px 11px;border-radius:var(--r);font-size:11px;font-weight:600;font-family:var(--mono)}
+.verdict.yes{background:var(--green3);border:1px solid rgba(52,211,153,.25);color:var(--green)}
+.verdict.no{background:var(--red3);border:1px solid rgba(248,113,113,.25);color:var(--red)}
+.verdict-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.verdict.yes .verdict-dot{background:var(--green)}
+.verdict.no .verdict-dot{background:var(--red)}
+.ambig-badge{display:none;font-size:8px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;padding:3px 7px;border-radius:3px;background:var(--amber3);color:var(--amber);border:1px solid rgba(251,191,36,.25)}
+
+.stepbar{display:flex;align-items:center;gap:5px;margin-left:auto}
+.cbtn{padding:5px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;font-family:var(--sans)}
+.cbtn:hover{border-color:var(--purple);color:var(--purple2)}
+.cbtn:disabled{opacity:.3;cursor:not-allowed}
+.cbtn.acc{background:var(--purple);border-color:var(--purple);color:#fff}
+.cbtn.acc:hover{background:var(--purple2)}
+.sbadge{font-family:var(--mono);font-size:10px;color:var(--muted);padding:4px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--border)}
+
+/* ── Step log ── */
+.steplog{padding:6px 18px;border-bottom:1px solid var(--border);font-size:11px;font-family:var(--mono);color:var(--muted2);min-height:30px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex-shrink:0}
+.steplog .hl{color:var(--purple2);font-weight:700}
+.steplog .sym{color:var(--teal)}
+.steplog .fired-rule{background:var(--amber3);color:var(--amber);padding:1px 5px;border-radius:3px;font-size:9px}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 18px;overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+.tab{padding:8px 14px;font-size:11px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;font-family:var(--sans)}
+.tab.active{color:var(--purple2);border-bottom-color:var(--purple)}
+.tab:hover:not(.active){color:var(--text)}
+.tab-badge{display:inline-block;margin-left:4px;font-size:8px;background:var(--purple3);color:var(--purple2);border-radius:3px;padding:1px 4px;font-family:var(--mono)}
+.panel{display:none;flex:1;overflow:auto;padding:16px 18px;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.panel.active{display:block}
+
+/* ── CYK Table ── */
+.tscroll{overflow-x:auto}
+.cyk-tbl{border-collapse:collapse;font-family:var(--mono)}
+.cyk-tbl th{padding:6px 8px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);text-align:center;min-width:72px;white-space:nowrap}
+.cyk-tbl td{min-width:72px;height:52px;border:1px solid var(--border);text-align:center;vertical-align:middle;font-size:10px;color:var(--muted);transition:background .2s,color .2s,border-color .2s;padding:3px;cursor:pointer}
+.cyk-tbl td:hover{background:var(--bg4)!important}
+.cyk-tbl td.rl{font-size:8px;color:var(--muted);background:var(--bg2);border:none;padding:0 5px;text-align:right;min-width:40px;white-space:nowrap;cursor:default}
+.cyk-tbl td.ec{background:var(--bg);border-color:transparent;cursor:default}
+.cyk-tbl td.ec:hover{background:var(--bg)!important}
+.cyk-tbl td.filled{background:var(--purple3);color:var(--purple2);border-color:rgba(139,124,248,.25);font-weight:600}
+.cyk-tbl td.active{background:var(--teal3);color:var(--teal);border-color:rgba(34,211,184,.3);font-weight:600}
+.cyk-tbl td.acc{background:var(--green3);color:var(--green);border-color:rgba(52,211,153,.35);font-weight:700;font-size:13px}
+.cyk-tbl td.rej{background:var(--red3);color:var(--red);border-color:rgba(248,113,113,.25)}
+.cyk-tbl td.fired-cell{box-shadow:inset 0 0 0 2px var(--amber);background:var(--amber3);color:var(--amber)}
+
+.legend{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted2)}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* ── Cell Tooltip ── */
+.cell-tooltip{position:fixed;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--r2);padding:10px 12px;font-family:var(--mono);font-size:11px;pointer-events:none;z-index:999;display:none;min-width:160px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.ct-title{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px}
+.ct-syms{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px}
+.ct-sym{background:var(--purple3);color:var(--purple2);padding:2px 6px;border-radius:3px;font-size:11px;font-weight:700}
+.ct-sub{font-size:9px;color:var(--muted2)}
+
+/* ── Parse Tree ── */
+#tree-wrap{overflow:auto;min-height:180px}
+.tree-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:180px;color:var(--muted);font-size:12px;gap:8px;font-family:var(--mono)}
+.tree-tabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.tree-tab-btn{font-size:9px;font-family:var(--mono);padding:3px 9px;border-radius:4px;border:1px solid var(--border2);background:var(--bg3);color:var(--muted2);cursor:pointer;transition:all .15s}
+.tree-tab-btn.active{background:var(--purple3);color:var(--purple2);border-color:var(--purple)}
+.export-row{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap}
+.exp-btn{font-size:10px;padding:5px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--muted2);cursor:pointer;transition:all .15s}
+.exp-btn:hover{border-color:var(--teal);color:var(--teal)}
+
+/* ── Derivation ── */
+.deriv-list{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:11px}
+.deriv-step{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r)}
+.deriv-idx{color:var(--muted);font-size:9px;min-width:26px;padding-top:1px}
+.deriv-str .nt{color:var(--purple2);font-weight:700}
+.deriv-str .t{color:var(--teal)}
+.deriv-rule{margin-left:auto;font-size:9px;color:var(--amber);background:var(--amber3);padding:2px 6px;border-radius:3px;border:1px solid rgba(251,191,36,.2);white-space:nowrap}
+
+/* ── CNF panel ── */
+.cnf-steps{display:flex;flex-direction:column;gap:8px}
+.cnf-step-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.cnf-step-head{padding:7px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px}
+.cnf-step-name{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--purple2)}
+.cnf-step-desc{font-size:9px;color:var(--muted2)}
+.cnf-rules-list{padding:7px 10px;display:flex;flex-direction:column;gap:2px;font-family:var(--mono);font-size:10px}
+.cnf-rule .lhs{color:var(--purple2);font-weight:700}
+.cnf-rule .rhs{color:var(--teal)}
+
+/* ── Grammar analysis ── */
+.ga-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.ga-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px}
+.ga-card-label{font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px}
+.ga-card-val{font-size:20px;font-weight:700;font-family:var(--mono);color:var(--purple2)}
+.ga-card-sub{font-size:9px;color:var(--muted2);margin-top:2px}
+.ga-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px}
+.ga-tbl th{text-align:left;padding:5px 8px;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.ga-tbl td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text)}
+.ga-tbl td.lhsc{color:var(--purple2);font-weight:700;width:44px}
+.badge{display:inline-block;padding:2px 5px;border-radius:3px;font-size:8px;font-weight:700;letter-spacing:.5px}
+.bu{background:var(--teal3);color:var(--teal);border:1px solid rgba(34,211,184,.2)}
+.bb{background:var(--purple3);color:var(--purple2);border:1px solid rgba(139,124,248,.2)}
+.bi{background:var(--red3);color:var(--red);border:1px solid rgba(248,113,113,.2)}
+
+/* ── String gen ── */
+.gen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin-top:8px}
+.gen-str{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:6px 8px;font-family:var(--mono);font-size:10px;color:var(--teal);cursor:pointer;transition:all .15s;text-align:center}
+.gen-str:hover{border-color:var(--teal);background:var(--teal3)}
+.gen-empty{font-size:11px;color:var(--muted);font-family:var(--mono);padding:10px 0}
+.gen-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.gen-controls label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.gen-controls span{font-size:11px;font-family:var(--mono);color:var(--purple2);min-width:18px}
+
+/* ── Batch panel ── */
+.batch-area{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;font-family:var(--mono);font-size:11px;color:var(--text);width:100%;min-height:80px;outline:none;resize:vertical;margin-bottom:8px}
+.batch-area:focus{border-color:var(--purple)}
+.batch-results{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.batch-row{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:11px}
+.batch-row.ok{border-left:3px solid var(--green)}
+.batch-row.nok{border-left:3px solid var(--red)}
+.batch-input{flex:1;color:var(--muted2)}
+.batch-verdict{font-size:10px;font-weight:700}
+.batch-row.ok .batch-verdict{color:var(--green)}
+.batch-row.nok .batch-verdict{color:var(--red)}
+.batch-trees{font-size:9px;color:var(--muted);margin-left:auto}
+
+/* ── History panel ── */
+.hist-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .15s;font-family:var(--mono);font-size:11px;margin-bottom:4px}
+.hist-row:hover{border-color:var(--purple)}
+.hist-input{flex:1;color:var(--text)}
+.hist-time{font-size:9px;color:var(--muted)}
+.hist-v{font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px}
+.hist-v.ok{background:var(--green3);color:var(--green)}
+.hist-v.nok{background:var(--red3);color:var(--red)}
+
+/* ── Complexity panel ── */
+.cplx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+.cplx-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.cplx-label{font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:4px}
+.cplx-val{font-size:18px;font-weight:700;font-family:var(--mono);color:var(--teal)}
+.cplx-sub{font-size:9px;color:var(--muted2);margin-top:2px}
+.cplx-formula{font-family:var(--mono);font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:14px;color:var(--purple2)}
+canvas{max-width:100%}
+
+/* ── Share panel ── */
+.share-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:10px}
+.share-title{font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text)}
+.share-url{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);padding:7px 9px;color:var(--teal);word-break:break-all;margin-bottom:8px}
+.copy-btn{padding:6px 12px;background:var(--teal3);border:1px solid rgba(34,211,184,.25);border-radius:var(--r);color:var(--teal);font-size:11px;cursor:pointer;transition:all .15s;font-family:var(--sans)}
+.copy-btn:hover{background:rgba(34,211,184,.2)}
+
+/* ── Ambiguity info ── */
+.ambig-info{padding:9px 12px;border-radius:var(--r);font-size:11px;font-family:var(--mono);margin-bottom:12px}
+.ambig-info.yes{background:var(--amber3);color:var(--amber);border:1px solid rgba(251,191,36,.2)}
+.ambig-info.no{background:var(--green3);color:var(--green);border:1px solid rgba(52,211,153,.2)}
+.tree-count{font-size:10px;color:var(--muted2);margin-bottom:8px;font-family:var(--mono)}
+
+/* ── Section header ── */
+.sec-hdr{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.sec-hdr:first-child{margin-top:0}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--r2);padding:10px 16px;font-size:12px;font-family:var(--mono);color:var(--text);z-index:9999;transform:translateY(10px);opacity:0;transition:all .3s;pointer-events:none;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{border-color:rgba(52,211,153,.4);color:var(--green)}
+.toast.error{border-color:rgba(248,113,113,.4);color:var(--red)}
+
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:8888;display:none;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:20px;min-width:320px;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.modal-title{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--text)}
+.modal-body{font-size:12px;color:var(--muted2);line-height:1.7;margin-bottom:14px}
+.modal-close{padding:7px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:12px;cursor:pointer;font-family:var(--sans)}
+
+/* ── Progress bar ── */
+.progress-wrap{height:3px;background:var(--border);border-radius:2px;margin-bottom:8px;overflow:hidden}
+.progress-bar{height:100%;background:var(--purple);border-radius:2px;transition:width .3s;width:0}
+
+/* ── WS streaming indicator ── */
+.stream-indicator{display:flex;align-items:center;gap:5px;font-size:9px;font-family:var(--mono);color:var(--purple2)}
+.stream-dot{width:5px;height:5px;border-radius:50%;background:var(--purple);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+@media(max-width:820px){.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+.sidebar{height:auto;max-height:45vh;position:static}
+.main{height:55vh}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+  <div class="sb-head">
+    <div class="sb-logo">Theory of Computation</div>
+    <div class="sb-title">CYK <em>Parser</em> Pro</div>
+    <div class="sb-badges">
+      <span class="sb-badge">v2.0</span>
+      <span class="sb-badge green" id="conn-badge">● Offline</span>
+    </div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sb-sec-label"><span>Presets</span></div>
+    <div class="presets">
+      <button class="pre-btn" onclick="loadPreset('anbn')">aⁿbⁿ</button>
+      <button class="pre-btn" onclick="loadPreset('eqab')">Equal a,b</button>
+      <button class="pre-btn" onclick="loadPreset('palindrome')">Palindrome</button>
+      <button class="pre-btn" onclick="loadPreset('arith')">Arithmetic</button>
+      <button class="pre-btn" onclick="loadPreset('ambig')">Ambiguous</button>
+      <button class="pre-btn" onclick="loadPreset('dyck')">Dyck</button>
+      <button class="pre-btn" onclick="loadPreset('wcw')">ww^R</button>
+    </div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sb-sec-label">
+      <span>Grammar Rules</span>
+      <button onclick="convertToCNF()">Auto→CNF</button>
+    </div>
+    <div class="rule-list" id="rule-list"></div>
+    <button class="add-btn" onclick="addRuleRow('','')">+ Add rule</button>
+  </div>
+
+  <div class="sb-sec">
+    <div class="field">
+      <label>Start Symbol</label>
+      <input class="fi" id="start-sym" value="S" style="width:60px">
+    </div>
+    <div class="field">
+      <label>Input String (space-separated)</label>
+      <input class="fi" id="input-str" value="a a b b" onkeydown="if(event.key==='Enter')runCYK()">
+    </div>
+  </div>
+
+  <div class="cnf-note">
+    <b>CNF:</b> A → B C &nbsp;|&nbsp; A → a<br>
+    Use <b>Auto→CNF</b> to convert grammar.
+  </div>
+
+  <button class="parse-btn" id="parse-btn" onclick="runCYK()">
+    <span id="parse-btn-icon">▶</span> Parse String
+  </button>
+
+  <div class="action-row">
+    <button class="sm-btn" onclick="runBatch()">Batch</button>
+    <button class="sm-btn" onclick="runComplexity()">Complexity</button>
+    <button class="sm-btn" onclick="shareGrammar()">Share</button>
+    <button class="sm-btn" onclick="showModal('keyboard')">Keys</button>
+  </div>
+  <div class="err" id="err"></div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Ready</span>
+    <span class="status-sep">|</span>
+    <span id="status-session">session: —</span>
+    <span class="status-sep">|</span>
+    <span id="status-ops">ops: —</span>
+    <span class="status-sep">|</span>
+    <span id="status-ws">ws: disconnected</span>
+  </div>
+
+  <!-- Main header -->
+  <div class="mhead">
+    <div class="verdict" id="verdict">
+      <div class="verdict-dot"></div>
+      <span id="verdict-text"></span>
+    </div>
+    <div class="ambig-badge" id="ambig-badge">Ambiguous</div>
+    <div class="stepbar">
+      <div class="stream-indicator" id="stream-ind" style="display:none">
+        <div class="stream-dot"></div><span>streaming</span>
+      </div>
+      <button class="cbtn" id="btn-reset" onclick="resetRun()" disabled>↺</button>
+      <button class="cbtn" id="btn-back" onclick="stepBack()" disabled>← Back</button>
+      <button class="cbtn acc" id="btn-step" onclick="stepFwd()" disabled>Step →</button>
+      <button class="cbtn" id="btn-all" onclick="runAll()" disabled>Run All</button>
+      <button class="cbtn" id="btn-stream" onclick="toggleStream()" title="WebSocket streaming">⚡ Stream</button>
+      <div class="sbadge" id="sbadge">—</div>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap" id="progress-wrap" style="display:none">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+
+  <!-- Step log -->
+  <div class="steplog" id="steplog">Load a grammar and press Parse to begin.</div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('table')">DP Table</button>
+    <button class="tab" onclick="switchTab('tree')">Parse Trees</button>
+    <button class="tab" onclick="switchTab('deriv')">Derivation</button>
+    <button class="tab" onclick="switchTab('cnfpanel')">CNF Steps</button>
+    <button class="tab" onclick="switchTab('gen')">String Gen</button>
+    <button class="tab" onclick="switchTab('grammar')">Grammar<span class="tab-badge" id="badge-grammar">—</span></button>
+    <button class="tab" onclick="switchTab('batch')">Batch</button>
+    <button class="tab" onclick="switchTab('complexity')">Complexity</button>
+    <button class="tab" onclick="switchTab('history')">History<span class="tab-badge" id="badge-history">0</span></button>
+    <button class="tab" onclick="switchTab('share')">Share</button>
+  </div>
+
+  <!-- DP Table -->
+  <div class="panel active" id="panel-table">
+    <div class="tscroll" id="tbl-container">
+      <div class="tree-empty" style="height:140px"><span>Run a parse to see the DP table.</span></div>
+    </div>
+    <div class="legend" id="legend" style="display:none">
+      <div class="leg"><div class="leg-dot" style="background:rgba(139,124,248,.4)"></div>filled</div>
+      <div class="leg"><div class="leg-dot" style="background:rgba(34,211,184,.4)"></div>computing</div>
+      <div class="leg"><div class="leg-dot" style="background:rgba(52,211,153,.4)"></div>accepted</div>
+      <div class="leg"><div class="leg-dot" style="background:rgba(248,113,113,.4)"></div>rejected</div>
+      <div class="leg"><div class="leg-dot" style="background:rgba(251,191,36,.4)"></div>rule fired</div>
+    </div>
+  </div>
+
+  <!-- Parse Trees -->
+  <div class="panel" id="panel-tree">
+    <div class="export-row">
+      <button class="exp-btn" onclick="exportSVG()">↓ SVG</button>
+      <button class="exp-btn" onclick="exportPNG()">↓ PNG</button>
+      <button class="exp-btn" onclick="exportJSON()">↓ JSON</button>
+    </div>
+    <div class="tree-count" id="tree-count"></div>
+    <div class="tree-tabs" id="tree-tabs"></div>
+    <div id="tree-wrap"><div class="tree-empty"><span>Parse tree appears after running all steps.</span></div></div>
+  </div>
+
+  <!-- Derivation -->
+  <div class="panel" id="panel-deriv">
+    <div id="deriv-container"><div class="tree-empty" style="height:120px"><span>Derivation appears after full parse.</span></div></div>
+  </div>
+
+  <!-- CNF Steps -->
+  <div class="panel" id="panel-cnfpanel">
+    <div id="cnf-container"><div class="tree-empty" style="height:120px"><span>Use Auto→CNF to see conversion steps.</span></div></div>
+  </div>
+
+  <!-- String Gen -->
+  <div class="panel" id="panel-gen">
+    <div class="gen-controls">
+      <label>Max length</label>
+      <input type="range" min="1" max="10" value="4" id="gen-len" step="1" oninput="document.getElementById('gen-len-out').textContent=this.value">
+      <span id="gen-len-out">4</span>
+      <label style="margin-left:8px">Limit</label>
+      <input type="range" min="10" max="80" value="40" id="gen-limit" step="5" oninput="document.getElementById('gen-limit-out').textContent=this.value">
+      <span id="gen-limit-out">40</span>
+      <button class="cbtn" onclick="generateStrings()">Generate</button>
+    </div>
+    <div id="gen-stats" style="font-size:10px;color:var(--muted2);font-family:var(--mono);margin-bottom:8px"></div>
+    <div class="gen-grid" id="gen-grid"><div class="gen-empty">Press Generate to find valid strings from this grammar.</div></div>
+  </div>
+
+  <!-- Grammar Analysis -->
+  <div class="panel" id="panel-grammar">
+    <div id="gram-container"><div class="tree-empty" style="height:120px"><span>Grammar analysis appears here.</span></div></div>
+  </div>
+
+  <!-- Batch -->
+  <div class="panel" id="panel-batch">
+    <div class="sec-hdr">Batch Parse — test multiple strings at once</div>
+    <textarea class="batch-area" id="batch-input" placeholder="Enter one string per line:&#10;a a b b&#10;a b&#10;a a a b b b"></textarea>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <button class="cbtn acc" onclick="runBatch()">Run Batch</button>
+      <span id="batch-summary" style="font-size:11px;font-family:var(--mono);color:var(--muted2)"></span>
+    </div>
+    <div class="batch-results" id="batch-results"></div>
+  </div>
+
+  <!-- Complexity -->
+  <div class="panel" id="panel-complexity">
+    <div class="sec-hdr">Complexity Analysis</div>
+    <div class="cplx-formula" id="cplx-formula">Run a parse to see complexity report.</div>
+    <div class="cplx-grid" id="cplx-grid"></div>
+    <div style="max-width:500px;margin-top:14px">
+      <canvas id="cplx-chart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="panel" id="panel-history">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="sec-hdr" style="margin:0">Parse History</div>
+      <button class="sm-btn" style="flex:0" onclick="clearHistory()">Clear</button>
+    </div>
+    <div id="history-list"><div class="tree-empty" style="height:100px"><span>No history yet.</span></div></div>
+  </div>
+
+  <!-- Share -->
+  <div class="panel" id="panel-share">
+    <div class="sec-hdr">Share Grammar</div>
+    <div class="share-card">
+      <div class="share-title">Export Grammar</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="cbtn" onclick="copyGrammarJSON()">Copy JSON</button>
+        <button class="cbtn" onclick="importGrammarJSON()">Import JSON</button>
+        <button class="cbtn acc" onclick="shareGrammar()">Generate Share Link</button>
+      </div>
+    </div>
+    <div id="share-result"></div>
+    <div class="share-card" style="margin-top:12px">
+      <div class="share-title">Load from Share ID</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="fi" id="share-id-input" placeholder="Enter share ID (e.g. a1b2c3d4)" style="flex:1">
+        <button class="cbtn acc" onclick="loadShared()">Load</button>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- Cell tooltip -->
+<div class="cell-tooltip" id="cell-tooltip">
+  <div class="ct-title">dp[i][j] contents</div>
+  <div class="ct-syms" id="ct-syms"></div>
+  <div class="ct-sub" id="ct-sub"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <button class="modal-close" onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════
+const API = 'http://localhost:3001/api';
+const WS_URL = 'ws://localhost:3001/ws';
+let BACKEND_AVAILABLE = false;
+let sessionId = 'local-' + Math.random().toString(36).slice(2, 9);
+let wsConn = null;
+let streamActive = false;
+let cplxChart = null;
+
+// ══════════════════════════════════════════════════
+// STATE (local fallback engine)
+// ══════════════════════════════════════════════════
+let rules=[], tokens=[], n=0, startSym='S';
+let steps=[], curStep=0;
+let allTrees=[], curTreeIdx=0;
+let cnfLog=[];
+let history=[];
+let dpFinal=null;
+let bpFinal=null;
+
+// ══════════════════════════════════════════════════
+// PRESETS
+// ══════════════════════════════════════════════════
+const PRESETS={
+  anbn:{rules:[['S','A B'],['S','A C'],['C','S B'],['A','a'],['B','b']],input:'a a b b',start:'S'},
+  eqab:{rules:[['S','A B'],['S','A C'],['C','S B'],['S','B A'],['S','B D'],['D','S A'],['A','a'],['B','b']],input:'a b b a',start:'S'},
+  palindrome:{rules:[['S','A B'],['B','S A'],['S','A'],['S','B'],['S','a'],['S','b'],['A','a'],['B','b']],input:'a b a',start:'S'},
+  arith:{rules:[['E','E A'],['A','P T'],['E','T'],['T','a'],['T','b'],['P','+']],input:'a + b',start:'E'},
+  ambig:{rules:[['S','A B'],['S','A C'],['C','S B'],['S','B D'],['D','S A'],['S','B A'],['S','A'],['S','B'],['A','a'],['B','b']],input:'a b',start:'S'},
+  dyck:{rules:[['S','L R'],['L','l'],['R','r'],['S','S S'],['S','L T'],['T','S R']],input:'l l r r',start:'S'},
+  wcw:{rules:[['S','A B'],['B','S A'],['S','a'],['S','b'],['A','a'],['B','b']],input:'a b b a',start:'S'}
+};
+
+// ══════════════════════════════════════════════════
+// BACKEND CONNECTIVITY
+// ══════════════════════════════════════════════════
+async function checkBackend(){
+  try {
+    const r = await fetch(API+'/health', {signal: AbortSignal.timeout(2000)});
+    if(r.ok){
+      BACKEND_AVAILABLE = true;
+      document.getElementById('conn-badge').textContent = '● Online';
+      document.getElementById('conn-badge').style.background = 'var(--green3)';
+      document.getElementById('conn-badge').style.color = 'var(--green)';
+      document.getElementById('conn-badge').style.borderColor = 'rgba(52,211,153,.25)';
+      const data = await r.json();
+      setStatus(`backend v${data.version}`, 'online');
+      initWebSocket();
+    }
+  } catch(e){
+    setStatus('local mode (no backend)', 'offline');
+  }
+}
+
+function initWebSocket(){
+  try {
+    wsConn = new WebSocket(WS_URL);
+    wsConn.onopen = () => { document.getElementById('status-ws').textContent = 'ws: connected'; };
+    wsConn.onclose = () => { document.getElementById('status-ws').textContent = 'ws: disconnected'; wsConn=null; };
+    wsConn.onerror = () => { wsConn=null; };
+    wsConn.onmessage = handleWSMessage;
+  } catch(e){}
+}
+
+function handleWSMessage(ev){
+  const msg = JSON.parse(ev.data);
+  if(msg.type === 'start'){
+    document.getElementById('progress-wrap').style.display='block';
+    document.getElementById('stream-ind').style.display='flex';
+  }
+  if(msg.type === 'step'){
+    const pct = ((msg.index+1)/msg.total*100).toFixed(0);
+    document.getElementById('progress-bar').style.width = pct+'%';
+    // Feed into local step store for interactive stepping
+    if(steps.length === 0) steps = new Array(msg.total).fill(null);
+    steps[msg.index] = msg.step;
+    curStep = msg.index+1;
+    applyStep(msg.step, msg.index);
+    document.getElementById('sbadge').textContent = `${msg.index+1} / ${msg.total}`;
+  }
+  if(msg.type === 'done'){
+    streamActive = false;
+    document.getElementById('stream-ind').style.display='none';
+    document.getElementById('progress-wrap').style.display='none';
+    document.getElementById('progress-bar').style.width='0';
+    allTrees = msg.trees || [];
+    buildAllTreesUI(bpFinal);
+    showVerdict(null, msg.accepted);
+    renderDerivation(null, msg.derivation);
+    showToast('Stream complete — '+msg.treeCount+' tree(s)', 'success');
+    enableCtrls();
+  }
+  if(msg.type === 'error'){
+    showErr(msg.message);
+    streamActive = false;
+    document.getElementById('stream-ind').style.display='none';
+  }
+}
+
+function toggleStream(){
+  if(!wsConn || wsConn.readyState !== WebSocket.OPEN){
+    showToast('WebSocket not connected. Start backend.', 'error'); return;
+  }
+  if(streamActive){
+    wsConn.send(JSON.stringify({type:'abort'}));
+    streamActive = false;
+    document.getElementById('stream-ind').style.display='none';
+    return;
+  }
+  const rs = getRules();
+  const input = document.getElementById('input-str').value.trim();
+  if(!rs.length || !input) { showErr('Add rules and input first.'); return; }
+  hideErr();
+  rules=rs; startSym=document.getElementById('start-sym').value.trim()||'S';
+  tokens=input.split(/\s+/).filter(Boolean); n=tokens.length;
+  steps=[]; curStep=0; allTrees=[];
+  renderTable(null,-1,-1,false,-1);
+  streamActive = true;
+  wsConn.send(JSON.stringify({type:'parse_stream', rules:rs, startSymbol:startSym, input}));
+}
+
+// ══════════════════════════════════════════════════
+// LOAD PRESET
+// ══════════════════════════════════════════════════
+function loadPreset(name){
+  document.querySelectorAll('.pre-btn').forEach(b=>b.classList.remove('active'));
+  event && event.target && event.target.classList.add('active');
+  const p=PRESETS[name];
+  if(!p) return;
+  document.getElementById('rule-list').innerHTML='';
+  p.rules.forEach(([l,r])=>addRuleRow(l,r));
+  document.getElementById('input-str').value=p.input;
+  document.getElementById('start-sym').value=p.start;
+  updateGrammarPanel();
+}
+
+// ══════════════════════════════════════════════════
+// RULE ROWS
+// ══════════════════════════════════════════════════
+function addRuleRow(lhs='',rhs=''){
+  const list=document.getElementById('rule-list');
+  const d=document.createElement('div');
+  d.className='rule-row';
+  d.innerHTML=`<input class="rlhs" value="${lhs}" placeholder="A" maxlength="6" oninput="updateGrammarPanel()">
+    <span class="rarrow">→</span>
+    <input class="rrhs" value="${rhs}" placeholder="B C or a" oninput="updateGrammarPanel()">
+    <button class="rdel" onclick="this.parentElement.remove();updateGrammarPanel()">×</button>`;
+  list.appendChild(d);
+  updateGrammarPanel();
+}
+
+function getRules(){
+  return [...document.querySelectorAll('.rule-row')].map(r=>({
+    lhs:r.querySelector('.rlhs').value.trim(),
+    rhs:r.querySelector('.rrhs').value.trim().split(/\s+/).filter(Boolean)
+  })).filter(r=>r.lhs&&r.rhs.length);
+}
+
+// ══════════════════════════════════════════════════
+// CNF AUTO-CONVERTER
+// ══════════════════════════════════════════════════
+async function convertToCNF(){
+  const rs=getRules(), start0=document.getElementById('start-sym').value.trim()||'S';
+
+  if(BACKEND_AVAILABLE){
+    try {
+      const resp = await fetch(API+'/cnf',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rules:rs,startSymbol:start0})});
+      const data = await resp.json();
+      cnfLog = data.log;
+      document.getElementById('rule-list').innerHTML='';
+      document.getElementById('start-sym').value = data.startSymbol;
+      data.cnfRules.forEach(r=>addRuleRow(r.lhs,r.rhs.join(' ')));
+      renderCNFPanel();
+      updateGrammarPanel();
+      showToast('Converted to CNF via backend','success');
+      return;
+    } catch(e){}
+  }
+
+  // Local fallback
+  cnfLog=[];
+  let r=[...rs.map(x=>({lhs:x.lhs,rhs:[...x.rhs]}))];
+  let ctr=0;
+  const newNT=()=>`X${++ctr}`;
+  const S0=start0+"0";
+  r.unshift({lhs:S0,rhs:[start0]});
+  cnfLog.push({name:'START',desc:'Add new start symbol',rules:r.map(x=>({...x,rhs:[...x.rhs]}))});
+  const termMap={};
+  const r2=[];
+  r.forEach(rule=>{
+    if(rule.rhs.length>=2){
+      const newRhs=rule.rhs.map(s=>isTerminal(s)?(termMap[s]||(termMap[s]=newNT()),termMap[s]):s);
+      r2.push({lhs:rule.lhs,rhs:newRhs});
+    } else r2.push({...rule,rhs:[...rule.rhs]});
+  });
+  Object.entries(termMap).forEach(([t,nt])=>r2.push({lhs:nt,rhs:[t]}));
+  cnfLog.push({name:'TERM',desc:'Replace terminals in binary rules',rules:r2.map(x=>({...x,rhs:[...x.rhs]}))});
+  const r3=[];
+  r2.forEach(rule=>{
+    if(rule.rhs.length<=2){r3.push({...rule,rhs:[...rule.rhs]});return;}
+    let cur=rule.lhs;
+    for(let i=0;i<rule.rhs.length-2;i++){const nn=newNT();r3.push({lhs:cur,rhs:[rule.rhs[i],nn]});cur=nn;}
+    r3.push({lhs:cur,rhs:[rule.rhs[rule.rhs.length-2],rule.rhs[rule.rhs.length-1]]});
+  });
+  cnfLog.push({name:'BIN',desc:'Break rules with >2 symbols',rules:r3.map(x=>({...x,rhs:[...x.rhs]}))});
+  document.getElementById('rule-list').innerHTML='';
+  document.getElementById('start-sym').value=S0;
+  r3.forEach(rule=>addRuleRow(rule.lhs,rule.rhs.join(' ')));
+  renderCNFPanel();
+  updateGrammarPanel();
+  showToast('Converted to CNF (local)','success');
+}
+
+function isTerminal(s){return s===s.toLowerCase()&&!/^[A-Z]/.test(s)}
+function isNonTerminal(s){return /^[A-Z]/.test(s)}
+
+function renderCNFPanel(){
+  if(!cnfLog.length){
+    document.getElementById('cnf-container').innerHTML='<div class="tree-empty" style="height:80px"><span>Press Auto→CNF to see steps.</span></div>';
+    return;
+  }
+  let html='<div class="cnf-steps">';
+  cnfLog.forEach(step=>{
+    html+=`<div class="cnf-step-card">
+      <div class="cnf-step-head"><span class="cnf-step-name">${step.name}</span><span class="cnf-step-desc">${step.desc}</span></div>
+      <div class="cnf-rules-list">${step.rules.map(r=>`<div class="cnf-rule"><span class="lhs">${r.lhs}</span> → <span class="rhs">${r.rhs.join(' ')}</span></div>`).join('')}</div>
+    </div>`;
+  });
+  html+='</div>';
+  document.getElementById('cnf-container').innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════
+// GRAMMAR PANEL
+// ══════════════════════════════════════════════════
+function updateGrammarPanel(){
+  const rs=getRules();
+  document.getElementById('badge-grammar').textContent=rs.length||'—';
+  if(!rs.length){document.getElementById('gram-container').innerHTML='<div class="tree-empty" style="height:80px"><span>Add rules.</span></div>';return;}
+
+  const nts=new Set(rs.map(r=>r.lhs));
+  const terminals=new Set();
+  let cnfOk=true;
+  rs.forEach(r=>{
+    r.rhs.forEach(s=>{if(isTerminal(s))terminals.add(s);});
+    if(r.rhs.length===1&&isTerminal(r.rhs[0])) {}
+    else if(r.rhs.length===2&&r.rhs.every(isNonTerminal)) {}
+    else cnfOk=false;
+  });
+
+  let html=`<div class="ga-grid">
+    <div class="ga-card"><div class="ga-card-label">Rules</div><div class="ga-card-val">${rs.length}</div></div>
+    <div class="ga-card"><div class="ga-card-label">Non-terminals</div><div class="ga-card-val">${nts.size}</div><div class="ga-card-sub">${[...nts].join(', ')}</div></div>
+    <div class="ga-card"><div class="ga-card-label">Terminals</div><div class="ga-card-val">${terminals.size}</div><div class="ga-card-sub">${[...terminals].join(', ')}</div></div>
+    <div class="ga-card"><div class="ga-card-label">Is CNF?</div><div class="ga-card-val" style="font-size:14px;color:${cnfOk?'var(--green)':'var(--red)'}">${cnfOk?'✓ Yes':'✗ No'}</div></div>
+  </div>`;
+
+  html+=`<table class="ga-tbl"><thead><tr><th>LHS</th><th>→</th><th>RHS</th><th>Type</th></tr></thead><tbody>`;
+  rs.forEach(r=>{
+    let badge='';
+    if(r.rhs.length===1&&isTerminal(r.rhs[0])) badge=`<span class="badge bu">Unit (T)</span>`;
+    else if(r.rhs.length===2&&r.rhs.every(isNonTerminal)) badge=`<span class="badge bb">Binary</span>`;
+    else badge=`<span class="badge bi">Not CNF</span>`;
+    html+=`<tr><td class="lhsc">${r.lhs}</td><td style="color:var(--muted)">→</td><td style="font-family:var(--mono)">${r.rhs.join(' ')}</td><td>${badge}</td></tr>`;
+  });
+  html+=`</tbody></table>`;
+  document.getElementById('gram-container').innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════
+// MAIN PARSE (with backend fallback)
+// ══════════════════════════════════════════════════
+async function runCYK(){
+  hideErr();
+  const rs=getRules();
+  startSym=document.getElementById('start-sym').value.trim()||'S';
+  const inputStr=document.getElementById('input-str').value.trim();
+  if(!rs.length) return showErr('Add at least one rule.');
+  if(!inputStr) return showErr('Enter an input string.');
+  tokens=inputStr.split(/\s+/).filter(Boolean);
+  n=tokens.length;
+
+  setBtnLoading(true);
+  steps=[]; curStep=0; allTrees=[]; curTreeIdx=0; cnfLog=[]; dpFinal=null; bpFinal=null;
+
+  if(BACKEND_AVAILABLE){
+    try {
+      const resp = await fetch(API+'/parse',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rules:rs,startSymbol:startSym,input:inputStr,sessionId})});
+      const data = await resp.json();
+      if(data.error) { showErr(data.error); setBtnLoading(false); return; }
+      // Use backend data
+      steps = data.steps;
+      allTrees = data.trees;
+      rules = rs;
+      document.getElementById('status-ops').textContent = 'ops: '+data.steps.length;
+      finishParse(data.accepted, data.trees, data.derivation);
+      addToHistory(inputStr, rs, data.accepted);
+      setBtnLoading(false);
+      return;
+    } catch(e){ /* fallback to local */ }
+  }
+
+  // Local CYK
+  rules=rs;
+  const {accepted, _steps, _trees, _derivation, dp: _dp, bp: _bp} = localCYK(rs,startSym,tokens);
+  // localCYK also sets module-level steps,allTrees,dpFinal,bpFinal
+  document.getElementById('status-ops').textContent = 'ops: '+steps.length;
+  finishParse(accepted, allTrees, null);
+  addToHistory(inputStr,rs,accepted);
+  setBtnLoading(false);
+}
+
+function finishParse(accepted, trees, derivation){
+  enableCtrls();
+  renderTable(null,-1,-1,false,-1);
+  document.getElementById('legend').style.display='flex';
+  document.getElementById('sbadge').textContent=`0 / ${steps.length}`;
+  setLog('Press <b>Step →</b> to walk through, or <b>Run All</b>.');
+  document.getElementById('verdict').style.display='none';
+  document.getElementById('ambig-badge').style.display='none';
+  document.getElementById('tree-wrap').innerHTML='<div class="tree-empty"><span>Parse tree appears after running all steps.</span></div>';
+  document.getElementById('deriv-container').innerHTML='<div class="tree-empty" style="height:80px"><span>Derivation after full parse.</span></div>';
+  document.getElementById('tree-count').textContent='';
+  document.getElementById('tree-tabs').innerHTML='';
+  updateGrammarPanel();
+  renderCNFPanel();
+}
+
+function setBtnLoading(v){
+  const btn=document.getElementById('parse-btn');
+  btn.classList.toggle('loading',v);
+  document.getElementById('parse-btn-icon').textContent=v?'…':'▶';
+}
+
+// ══════════════════════════════════════════════════
+// LOCAL CYK ENGINE
+// ══════════════════════════════════════════════════
+function localCYK(rs, start, toks){
+  const _n=toks.length;
+  if(!_n) return {accepted:false};
+  const dp=Array.from({length:_n},()=>Array.from({length:_n},()=>new Set()));
+  const bp=Array.from({length:_n},()=>Array.from({length:_n},()=>[]));
+  steps=[];
+
+  for(let i=0;i<_n;i++){
+    const tok=toks[i];
+    rs.forEach((r,ri)=>{
+      if(r.rhs.length===1&&r.rhs[0]===tok){dp[i][i].add(r.lhs);bp[i][i].push({sym:r.lhs,type:'t',tok,ri});}
+    });
+    steps.push({dp:cpDp(dp),bp:cpBP(bp),hi:i,hj:i,hk:-1,fi:-1,
+      msg:`<span class="hl">Diagonal</span> dp[${i+1}][${i+1}] ← "<span class="sym">${tok}</span>" → {${[...dp[i][i]].join(', ')||'∅'}}`});
+  }
+
+  for(let len=2;len<=_n;len++){
+    for(let i=0;i<=_n-len;i++){
+      const j=i+len-1;
+      for(let k=i;k<j;k++){
+        let lastFi=-1;
+        rs.forEach((r,ri)=>{
+          if(r.rhs.length===2){
+            const[B,C]=r.rhs;
+            if(dp[i][k].has(B)&&dp[k+1][j].has(C)){
+              if(!dp[i][j].has(r.lhs)){dp[i][j].add(r.lhs);lastFi=ri;}
+              bp[i][j].push({sym:r.lhs,type:'b',B,C,k,ri});
+            }
+          }
+        });
+        steps.push({dp:cpDp(dp),bp:cpBP(bp),hi:i,hj:j,hk:k,fi:lastFi,
+          msg:`<span class="hl">len=${len}</span> dp[${i+1}][${j+1}] k=${k+1}: {${[...dp[i][j]].join(', ')||'∅'}}${lastFi>=0?` <span class="fired-rule">${rs[lastFi].lhs}→${rs[lastFi].rhs.join(' ')}</span>`:''}`});
+      }
+    }
+  }
+  if(steps.length) steps[steps.length-1].done=true;
+  const accepted=dp[0][_n-1].has(start);
+  allTrees=[];
+  buildTreesRec(bp,0,_n-1,start,allTrees,0);
+  dpFinal=cpDp(dp); bpFinal=cpBP(bp);
+  return {accepted};
+}
+
+function cpDp(dp){return dp.map(r=>r.map(c=>new Set(c)))}
+function cpBP(bp){return bp.map(r=>r.map(c=>c.map(e=>({...e}))))}
+
+// ══════════════════════════════════════════════════
+// STEPPING
+// ══════════════════════════════════════════════════
+function stepFwd(){if(curStep>=steps.length)return;curStep++;applyStep(steps[curStep-1],curStep-1);}
+function stepBack(){
+  if(curStep<=0)return;curStep--;
+  if(curStep===0){renderTable(null,-1,-1,false,-1);setLog('Ready.');document.getElementById('verdict').style.display='none';}
+  else applyStep(steps[curStep-1],curStep-1);
+  document.getElementById('sbadge').textContent=`${curStep} / ${steps.length}`;
+}
+function runAll(){if(!steps.length)return;curStep=steps.length;applyStep(steps[steps.length-1],steps.length-1);}
+function resetRun(){
+  curStep=0;renderTable(null,-1,-1,false,-1);setLog('Ready.');
+  document.getElementById('verdict').style.display='none';
+  document.getElementById('ambig-badge').style.display='none';
+  document.getElementById('sbadge').textContent=`0 / ${steps.length}`;
+  document.getElementById('tree-wrap').innerHTML='<div class="tree-empty"><span>Parse tree appears after running all steps.</span></div>';
+  document.getElementById('deriv-container').innerHTML='<div class="tree-empty" style="height:80px"><span>Derivation after full parse.</span></div>';
+  document.getElementById('tree-count').textContent='';document.getElementById('tree-tabs').innerHTML='';
+  highlightFiredRule(-1);
+  document.getElementById('progress-bar').style.width='0';
+}
+
+function applyStep(s, idx){
+  const total=steps.length;
+  document.getElementById('sbadge').textContent=`${idx+1} / ${total}`;
+  document.getElementById('progress-bar').style.width = ((idx+1)/total*100)+'%';
+  renderTable(s.dp,s.hi,s.hj,s.done,s.fi);
+  setLog(s.msg||'');
+  highlightFiredRule(s.fi);
+  if(idx+1===total){
+    showVerdict(s.dp,null);
+    buildAllTreesUI(s.bp);
+    renderDerivation(s.bp,null);
+  }
+}
+
+function highlightFiredRule(fi){
+  document.querySelectorAll('.rule-row').forEach((r,i)=>r.classList.toggle('fired',i===fi));
+}
+
+// ══════════════════════════════════════════════════
+// TABLE RENDER (with hover tooltip)
+// ══════════════════════════════════════════════════
+function renderTable(dp,hi,hj,done,fi){
+  if(!dp){
+    document.getElementById('tbl-container').innerHTML='<div class="tree-empty" style="height:120px"><span>Run a parse to see the DP table.</span></div>';
+    return;
+  }
+  let h=`<table class="cyk-tbl"><thead><tr><th></th>`;
+  for(let j=0;j<n;j++) h+=`<th><span style="color:var(--teal)">${tokens[j]}</span><br><span style="font-size:8px;color:var(--muted)">j=${j+1}</span></th>`;
+  h+=`</tr></thead><tbody>`;
+  for(let i=0;i<n;i++){
+    h+=`<tr><td class="rl">i=${i+1}</td>`;
+    for(let j=0;j<n;j++){
+      if(j<i){h+=`<td class="ec"></td>`;continue;}
+      const content=[...dp[i][j]].join(', ');
+      const isTop=done&&i===0&&j===n-1;
+      const isActive=i===hi&&j===hj;
+      let cls='';
+      if(isTop) cls=dp[0][n-1].has(startSym)?'acc':'rej';
+      else if(isActive&&fi>=0&&content) cls='fired-cell';
+      else if(isActive) cls='active';
+      else if(content) cls='filled';
+      const syms=encodeURIComponent(JSON.stringify({syms:[...dp[i][j]],i,j}));
+      h+=`<td class="${cls}" onmouseenter="showCellTooltip(event,'${syms}')" onmouseleave="hideCellTooltip()">${content||''}</td>`;
+    }
+    h+=`</tr>`;
+  }
+  h+=`</tbody></table>`;
+  document.getElementById('tbl-container').innerHTML=h;
+}
+
+function showCellTooltip(e, encoded){
+  const {syms,i,j} = JSON.parse(decodeURIComponent(encoded));
+  if(!syms.length) return;
+  const tt=document.getElementById('cell-tooltip');
+  document.getElementById('ct-syms').innerHTML=syms.map(s=>`<span class="ct-sym">${s}</span>`).join('');
+  document.getElementById('ct-sub').textContent=`dp[${i+1}][${j+1}] — ${syms.length} symbol(s)`;
+  tt.style.display='block';
+  tt.style.left=Math.min(e.clientX+12, window.innerWidth-180)+'px';
+  tt.style.top=Math.min(e.clientY-30, window.innerHeight-80)+'px';
+}
+function hideCellTooltip(){document.getElementById('cell-tooltip').style.display='none';}
+
+// ══════════════════════════════════════════════════
+// VERDICT
+// ══════════════════════════════════════════════════
+function showVerdict(dp, override){
+  const ok = override !== null ? override : (dp&&dp[0]&&dp[0][n-1]&&dp[0][n-1].has(startSym));
+  const v=document.getElementById('verdict');
+  v.className='verdict '+(ok?'yes':'no');
+  v.style.display='flex';
+  document.getElementById('verdict-text').textContent=ok?`"${tokens.join(' ')}" accepted`:`"${tokens.join(' ')}" rejected`;
+}
+
+// ══════════════════════════════════════════════════
+// PARSE TREES
+// ══════════════════════════════════════════════════
+function buildTreesRec(bp,i,j,sym,results,depth){
+  if(depth>20||results.length>=8)return;
+  if(!bp[i]||!bp[i][j])return;
+  const entries=bp[i][j].filter(e=>e.sym===sym);
+  if(!entries.length)return;
+  const seen=new Set();
+  entries.forEach(entry=>{
+    const key=JSON.stringify(entry);
+    if(seen.has(key))return;seen.add(key);
+    if(entry.type==='t'){results.push({label:sym,children:[{label:entry.tok,leaf:true}]});}
+    else{
+      const lefts=[],rights=[];
+      buildTreesRec(bp,i,entry.k,entry.B,lefts,depth+1);
+      buildTreesRec(bp,entry.k+1,j,entry.C,rights,depth+1);
+      if(!lefts.length)lefts.push({label:entry.B});
+      if(!rights.length)rights.push({label:entry.C});
+      lefts.forEach(l=>rights.forEach(r=>{if(results.length<8)results.push({label:sym,children:[l,r]});}));
+    }
+  });
+}
+
+function buildAllTreesUI(bp){
+  if(!allTrees.length && bp){
+    allTrees=[];
+    buildTreesRec(bp,0,n-1,startSym,allTrees,0);
+  }
+  curTreeIdx=0;
+  const isAmbig=allTrees.length>1;
+  document.getElementById('ambig-badge').style.display=isAmbig?'block':'none';
+
+  // Remove old ambig-info
+  document.querySelector('.ambig-info')?.remove();
+  const treePanel=document.getElementById('panel-tree');
+  const ai=document.createElement('div');
+  ai.className='ambig-info '+(isAmbig?'yes':'no');
+  ai.textContent=isAmbig
+    ?`AMBIGUOUS — ${allTrees.length} distinct parse trees for "${tokens.join(' ')}".`
+    :allTrees.length===0?`String rejected — no parse tree.`:`Unambiguous for this string.`;
+  treePanel.insertBefore(ai,treePanel.querySelector('.export-row'));
+
+  document.getElementById('tree-count').textContent=allTrees.length>0?`${allTrees.length} parse tree${allTrees.length>1?'s':''} found`:'';
+  const tabsEl=document.getElementById('tree-tabs');
+  tabsEl.innerHTML='';
+  if(allTrees.length>1){
+    allTrees.forEach((_,i)=>{
+      const b=document.createElement('button');
+      b.className='tree-tab-btn'+(i===0?' active':'');
+      b.textContent=`Tree ${i+1}`;
+      b.onclick=()=>{curTreeIdx=i;renderCurrentTree();document.querySelectorAll('.tree-tab-btn').forEach((x,j)=>x.classList.toggle('active',j===i));};
+      tabsEl.appendChild(b);
+    });
+  }
+  if(allTrees.length>0)renderCurrentTree();
+  else document.getElementById('tree-wrap').innerHTML='<div class="tree-empty"><span>No parse tree — string rejected.</span></div>';
+}
+
+function renderCurrentTree(){
+  if(!allTrees[curTreeIdx]){document.getElementById('tree-wrap').innerHTML='<div class="tree-empty"><span>No tree.</span></div>';return;}
+  document.getElementById('tree-wrap').innerHTML=drawTree(allTrees[curTreeIdx]);
+}
+
+function drawTree(root){
+  const NW=56,NH=28,HG=8,VG=50;
+  function layout(node,depth){
+    node.depth=depth;
+    if(!node.children||!node.children.length){node.width=NW;return;}
+    node.children.forEach(c=>layout(c,depth+1));
+    node.width=Math.max(NW,node.children.reduce((s,c)=>s+c.width,0)+(node.children.length-1)*HG);
+  }
+  function assignX(node,sx){
+    node.cx=sx+(node.width)/2;
+    if(!node.children||!node.children.length)return;
+    let cx=sx;node.children.forEach(c=>{assignX(c,cx);cx+=c.width+HG;});
+  }
+  function maxD(node){return node.children&&node.children.length?Math.max(...node.children.map(maxD)):node.depth;}
+  function allNodes(node,a){a.push(node);if(node.children)node.children.forEach(c=>allNodes(c,a));return a;}
+  layout(root,0);assignX(root,10);
+  const nodes=allNodes(root,[]);
+  const md=maxD(root);
+  const W=root.width+20,H=(md+1)*(NH+VG)+30;
+  const purple='#b5acff',teal='#22d3b8',border='rgba(255,255,255,0.09)';
+  let edges='',nsvg='';
+  nodes.forEach(node=>{
+    const cx=node.cx,cy=node.depth*(NH+VG)+NH/2+15;
+    if(node.children){
+      node.children.forEach(child=>{
+        const ccx=child.cx,ccy=child.depth*(NH+VG)+NH/2+15;
+        edges+=`<line x1="${cx}" y1="${cy+NH/2}" x2="${ccx}" y2="${ccy-NH/2}" stroke="${border}" stroke-width="1.5"/>`;
+      });
+    }
+    const leaf=node.leaf||(!node.children||!node.children.length);
+    const fill=leaf?'rgba(34,211,184,0.13)':'rgba(139,124,248,0.15)';
+    const stroke=leaf?teal:purple;
+    const col=leaf?teal:purple;
+    const x=node.cx-NW/2;const y=node.depth*(NH+VG)+15;
+    nsvg+=`<g><rect x="${x}" y="${y}" width="${NW}" height="${NH}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="1"/>
+      <text x="${cx}" y="${y+NH/2+4}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="11" font-weight="700" fill="${col}">${node.label}</text></g>`;
+  });
+  return `<svg id="tree-svg" viewBox="0 0 ${W} ${H}" width="${Math.min(W,900)}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="display:block;max-width:100%">${edges}${nsvg}</svg>`;
+}
+
+// ══════════════════════════════════════════════════
+// DERIVATION
+// ══════════════════════════════════════════════════
+function renderDerivation(bp, serverDeriv){
+  if(serverDeriv){
+    renderDerivFromSteps(serverDeriv); return;
+  }
+  if(!allTrees.length){
+    document.getElementById('deriv-container').innerHTML='<div class="tree-empty" style="height:60px"><span>No derivation — rejected.</span></div>';return;
+  }
+  const derivSteps=[{sent:[startSym],rule:null}];
+  function derive2(node,s){
+    if(!node.children)return;
+    const idx=s.indexOf(node.label);
+    if(idx===-1)return;
+    const rule=`${node.label}→${node.children.map(c=>c.label).join(' ')}`;
+    s.splice(idx,1,...node.children.map(c=>c.label));
+    derivSteps.push({sent:[...s],rule});
+    node.children.forEach(c=>{if(!c.leaf)derive2(c,s);});
+  }
+  const s2=[startSym];derive2(allTrees[0],s2);
+  renderDerivFromSteps(derivSteps);
+}
+
+function renderDerivFromSteps(derivSteps){
+  let html='<div class="deriv-list">';
+  derivSteps.forEach((ds,i)=>{
+    const formatted=ds.sent.map(sym=>{
+      const isNT=/^[A-Z]/.test(sym);
+      return `<span class="${isNT?'nt':'t'}">${sym}</span>`;
+    }).join(' ');
+    html+=`<div class="deriv-step"><div class="deriv-idx">${i===0?'Start':i}</div><div class="deriv-str">${formatted}</div>${ds.rule?`<div class="deriv-rule">${ds.rule}</div>`:''}</div>`;
+  });
+  html+='</div>';
+  document.getElementById('deriv-container').innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════
+// STRING GENERATOR (with backend)
+// ══════════════════════════════════════════════════
+async function generateStrings(){
+  const rs=getRules();
+  const st=document.getElementById('start-sym').value.trim()||'S';
+  const maxLen=parseInt(document.getElementById('gen-len').value)||4;
+  const limit=parseInt(document.getElementById('gen-limit').value)||40;
+
+  if(!rs.length){document.getElementById('gen-grid').innerHTML='<div class="gen-empty">Add grammar rules first.</div>';return;}
+
+  let strings=[];
+  if(BACKEND_AVAILABLE){
+    try {
+      const resp=await fetch(API+'/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rules:rs,startSymbol:st,maxLength:maxLen,limit})});
+      const data=await resp.json();
+      strings=data.strings;
+    } catch(e){}
+  }
+
+  if(!strings.length){
+    // Local fallback
+    const found=new Set();
+    const memo=new Map();
+    function gen(sym,budget){
+      if(budget<=0)return[];
+      const key=`${sym}|${budget}`;if(memo.has(key))return memo.get(key);
+      const res=new Set();
+      rs.filter(r=>r.lhs===sym).forEach(r=>{
+        if(r.rhs.length===1&&isTerminal(r.rhs[0])){if(budget>=1)res.add(r.rhs[0]);}
+        else if(r.rhs.length===2){
+          for(let lb=1;lb<budget;lb++){
+            const lefts=gen(r.rhs[0],lb);const rights=gen(r.rhs[1],budget-lb);
+            lefts.forEach(l=>rights.forEach(r2=>{if(l||r2)res.add((l+' '+r2).trim());}));
+          }
+        }
+      });
+      const arr=[...res].slice(0,30);memo.set(key,arr);return arr;
+    }
+    for(let len=1;len<=maxLen;len++){memo.clear();gen(st,len).forEach(s=>{if(s.trim())found.add(s.trim());});}
+    strings=[...found].sort((a,b)=>a.split(' ').length-b.split(' ').length||a.localeCompare(b)).slice(0,limit);
+  }
+
+  document.getElementById('gen-stats').textContent=`${strings.length} strings found (max length ${maxLen})`;
+  if(!strings.length){document.getElementById('gen-grid').innerHTML='<div class="gen-empty">No strings found. Try increasing max length.</div>';return;}
+  document.getElementById('gen-grid').innerHTML=strings.map(s=>`<div class="gen-str" onclick="useStr('${s.replace(/'/g,"\\'")}')">${s}</div>`).join('');
+}
+
+function useStr(s){
+  document.getElementById('input-str').value=s;
+  switchTab('table');
+  runCYK();
+}
+
+// ══════════════════════════════════════════════════
+// BATCH PARSE
+// ══════════════════════════════════════════════════
+async function runBatch(){
+  switchTab('batch');
+  const rs=getRules();const start=document.getElementById('start-sym').value.trim()||'S';
+  const raw=document.getElementById('batch-input').value.trim();
+  if(!raw){document.getElementById('batch-results').innerHTML='<div class="tree-empty" style="height:60px"><span>Enter strings above.</span></div>';return;}
+  const inputs=raw.split('\n').map(s=>s.trim()).filter(Boolean);
+
+  let results=[];
+  if(BACKEND_AVAILABLE){
+    try{
+      const resp=await fetch(API+'/batch',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rules:rs,startSymbol:start,inputs})});
+      const data=await resp.json();
+      results=data.results;
+      document.getElementById('batch-summary').textContent=`${data.accepted}/${data.total} accepted`;
+    }catch(e){}
+  }
+
+  if(!results.length){
+    // Local fallback
+    results=inputs.map(input=>{
+      const toks=input.trim().split(/\s+/).filter(Boolean);
+      const savedSteps=steps;const savedToks=tokens;const savedN=n;const savedTrees=allTrees;
+      tokens=toks;n=toks.length;steps=[];allTrees=[];
+      localCYK(rs,start,toks);
+      const dp=steps.length?steps[steps.length-1].dp:null;
+      const accepted=dp&&dp[0]&&dp[0][n-1]?dp[0][n-1].has(start):false;
+      const treeCount=allTrees.length;
+      steps=savedSteps;tokens=savedToks;n=savedN;allTrees=savedTrees;
+      return {input,accepted,treeCount};
+    });
+    const acc=results.filter(r=>r.accepted).length;
+    document.getElementById('batch-summary').textContent=`${acc}/${results.length} accepted`;
+  }
+
+  document.getElementById('batch-results').innerHTML=results.map(r=>`
+    <div class="batch-row ${r.accepted?'ok':'nok'}">
+      <span class="batch-input">${r.input}</span>
+      <span class="batch-verdict">${r.accepted?'✓ ACCEPTED':'✗ REJECTED'}</span>
+      <span class="batch-trees">${r.treeCount} tree${r.treeCount!==1?'s':''}</span>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════
+// COMPLEXITY ANALYSIS
+// ══════════════════════════════════════════════════
+async function runComplexity(){
+  switchTab('complexity');
+  const rs=getRules();const start=document.getElementById('start-sym').value.trim()||'S';
+  const input=document.getElementById('input-str').value.trim();
+  if(!rs.length||!input){document.getElementById('cplx-formula').textContent='Add rules and input first.';return;}
+
+  let data=null;
+  if(BACKEND_AVAILABLE){
+    try{
+      const resp=await fetch(API+'/complexity',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rules:rs,startSymbol:start,input})});
+      data=await resp.json();
+    }catch(e){}
+  }
+
+  if(!data){
+    // Local computation
+    const toks=input.split(/\s+/).filter(Boolean);
+    const _n=toks.length,r=rs.length;
+    data={inputLength:_n,ruleCount:r,theoreticalOps:_n*_n*_n*r,actualOps:steps.length||_n*r,
+      fillDensity:((_n*(_n+1)/2)/((_n*(_n+1)/2)||1)*100).toFixed(1),
+      filledCells:_n,totalCells:_n*(_n+1)/2,timeComplexity:'O(n³ · |G|)',spaceComplexity:'O(n²)',
+      efficiency:((1-0.6)*100).toFixed(1)};
+  }
+
+  document.getElementById('cplx-formula').innerHTML=
+    `<span style="color:var(--muted2)">Time:</span> <b>${data.timeComplexity}</b>  &nbsp;|&nbsp;  `+
+    `<span style="color:var(--muted2)">Space:</span> <b>${data.spaceComplexity}</b>  &nbsp;|&nbsp;  `+
+    `<span style="color:var(--muted2)">n=${data.inputLength}, |G|=${data.ruleCount}</span>`;
+
+  document.getElementById('cplx-grid').innerHTML=`
+    <div class="cplx-card"><div class="cplx-label">Input Length (n)</div><div class="cplx-val">${data.inputLength}</div></div>
+    <div class="cplx-card"><div class="cplx-label">Grammar Rules |G|</div><div class="cplx-val">${data.ruleCount}</div></div>
+    <div class="cplx-card"><div class="cplx-label">Theoretical Ops</div><div class="cplx-val" style="font-size:14px">${data.theoreticalOps.toLocaleString()}</div><div class="cplx-sub">n³ × |G|</div></div>
+    <div class="cplx-card"><div class="cplx-label">Actual Steps</div><div class="cplx-val" style="font-size:14px">${(data.actualOps||steps.length).toLocaleString()}</div></div>
+    <div class="cplx-card"><div class="cplx-label">DP Fill Density</div><div class="cplx-val">${data.fillDensity}%</div><div class="cplx-sub">${data.filledCells}/${data.totalCells} cells</div></div>
+    <div class="cplx-card"><div class="cplx-label">Efficiency</div><div class="cplx-val">${data.efficiency}%</div></div>`;
+
+  // Chart
+  if(cplxChart) cplxChart.destroy();
+  const lengths=[1,2,3,4,5,6,7,8];
+  const ctx=document.getElementById('cplx-chart').getContext('2d');
+  cplxChart=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:lengths.map(l=>`n=${l}`),
+      datasets:[
+        {label:'Theoretical O(n³|G|)',data:lengths.map(l=>l**3*data.ruleCount),borderColor:'#8b7cf8',backgroundColor:'rgba(139,124,248,.1)',fill:true,tension:.4},
+        {label:'Linear O(n)',data:lengths.map(l=>l*data.ruleCount),borderColor:'#22d3b8',backgroundColor:'rgba(34,211,184,.05)',fill:true,tension:.4,borderDash:[4,4]}
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{labels:{color:'#8890a8',font:{family:'IBM Plex Mono',size:10}}}},
+      scales:{x:{ticks:{color:'#5a617a'},grid:{color:'rgba(255,255,255,0.04)'}},
+              y:{ticks:{color:'#5a617a'},grid:{color:'rgba(255,255,255,0.04)'}}}}
+  });
+}
+
+// ══════════════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════════════
+function addToHistory(input,rs,accepted){
+  history.unshift({input,rules:rs,accepted,timestamp:Date.now()});
+  if(history.length>50) history.pop();
+  document.getElementById('badge-history').textContent=history.length;
+  renderHistory();
+}
+
+function renderHistory(){
+  if(!history.length){document.getElementById('history-list').innerHTML='<div class="tree-empty" style="height:80px"><span>No history yet.</span></div>';return;}
+  document.getElementById('history-list').innerHTML=history.map((h,i)=>`
+    <div class="hist-row" onclick="loadFromHistory(${i})">
+      <span class="hist-input">${h.input}</span>
+      <span class="hist-v ${h.accepted?'ok':'nok'}">${h.accepted?'✓':'✗'}</span>
+      <span class="hist-time">${timeAgo(h.timestamp)}</span>
+    </div>`).join('');
+}
+
+function loadFromHistory(i){
+  const h=history[i];
+  document.getElementById('rule-list').innerHTML='';
+  h.rules.forEach(r=>addRuleRow(r.lhs,r.rhs.join(' ')));
+  document.getElementById('input-str').value=h.input;
+  switchTab('table');
+  runCYK();
+}
+
+function clearHistory(){
+  history=[];document.getElementById('badge-history').textContent='0';
+  renderHistory();showToast('History cleared');
+}
+
+function timeAgo(ts){
+  const s=Math.floor((Date.now()-ts)/1000);
+  if(s<60)return s+'s ago';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  return Math.floor(s/3600)+'h ago';
+}
+
+// ══════════════════════════════════════════════════
+// SHARE / EXPORT
+// ══════════════════════════════════════════════════
+async function shareGrammar(){
+  switchTab('share');
+  const rs=getRules(),start=document.getElementById('start-sym').value.trim()||'S';
+
+  if(BACKEND_AVAILABLE){
+    try{
+      const resp=await fetch(API+'/share',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rules:rs,startSymbol:start,name:'My Grammar'})});
+      const data=await resp.json();
+      document.getElementById('share-result').innerHTML=`
+        <div class="share-card">
+          <div class="share-title">Share Link Generated</div>
+          <div class="share-url">Share ID: <b>${data.shareId}</b></div>
+          <button class="copy-btn" onclick="copyText('${data.shareId}')">Copy Share ID</button>
+        </div>`;
+      showToast('Share link generated!','success');return;
+    }catch(e){}
+  }
+
+  // Fallback: local JSON
+  const json=JSON.stringify({rules:rs,startSymbol:start},null,2);
+  document.getElementById('share-result').innerHTML=`
+    <div class="share-card">
+      <div class="share-title">Grammar JSON (no backend — copy manually)</div>
+      <div class="share-url" style="font-size:10px;max-height:120px;overflow:auto">${json}</div>
+      <button class="copy-btn" onclick="copyText(${JSON.stringify(json)})">Copy JSON</button>
+    </div>`;
+}
+
+async function loadShared(){
+  const id=document.getElementById('share-id-input').value.trim();
+  if(!id){showToast('Enter a share ID','error');return;}
+  if(!BACKEND_AVAILABLE){showToast('Backend required for share loading','error');return;}
+  try{
+    const resp=await fetch(API+'/share/'+id);
+    if(!resp.ok){showToast('Share not found','error');return;}
+    const data=await resp.json();
+    document.getElementById('rule-list').innerHTML='';
+    data.rules.forEach(r=>addRuleRow(r.lhs,r.rhs.join(' ')));
+    document.getElementById('start-sym').value=data.startSymbol;
+    switchTab('table');
+    showToast('Grammar loaded!','success');
+  }catch(e){showToast('Failed to load share','error');}
+}
+
+function copyGrammarJSON(){
+  const rs=getRules(),start=document.getElementById('start-sym').value.trim()||'S';
+  copyText(JSON.stringify({rules:rs,startSymbol:start},null,2));
+}
+
+function importGrammarJSON(){
+  const text=prompt('Paste grammar JSON:');
+  if(!text)return;
+  try{
+    const data=JSON.parse(text);
+    document.getElementById('rule-list').innerHTML='';
+    data.rules.forEach(r=>addRuleRow(r.lhs,r.rhs.join(' ')));
+    if(data.startSymbol)document.getElementById('start-sym').value=data.startSymbol;
+    updateGrammarPanel();showToast('Grammar imported!','success');
+  }catch(e){showToast('Invalid JSON','error');}
+}
+
+function copyText(text){
+  navigator.clipboard.writeText(text).then(()=>showToast('Copied!','success')).catch(()=>showToast('Copy failed','error'));
+}
+
+// ══════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════
+function exportSVG(){
+  const svg=document.getElementById('tree-svg');
+  if(!svg){showToast('No parse tree to export','error');return;}
+  const blob=new Blob([svg.outerHTML],{type:'image/svg+xml'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='parse_tree.svg';a.click();
+  showToast('SVG exported','success');
+}
+
+function exportPNG(){
+  const wrap=document.getElementById('tree-wrap');
+  if(!document.getElementById('tree-svg')){showToast('No parse tree to export','error');return;}
+  html2canvas(wrap,{backgroundColor:'#07090f',scale:2}).then(canvas=>{
+    const a=document.createElement('a');a.href=canvas.toDataURL('image/png');a.download='parse_tree.png';a.click();
+    showToast('PNG exported','success');
+  });
+}
+
+function exportJSON(){
+  if(!allTrees.length){showToast('No parse tree to export','error');return;}
+  const data={trees:allTrees,input:tokens,grammar:getRules(),startSymbol:startSym};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='parse_result.json';a.click();
+  showToast('JSON exported','success');
+}
+
+// ══════════════════════════════════════════════════
+// UI UTILS
+// ══════════════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  const tabEl=document.querySelector(`.tab[onclick="switchTab('${name}')"]`);
+  if(tabEl) tabEl.classList.add('active');
+}
+
+function setLog(html){document.getElementById('steplog').innerHTML=html;}
+function showErr(m){const e=document.getElementById('err');e.textContent=m;e.style.display='block';}
+function hideErr(){document.getElementById('err').style.display='none';}
+function enableCtrls(){['btn-step','btn-all','btn-back','btn-reset'].forEach(id=>document.getElementById(id).disabled=false);}
+function setStatus(text,type){
+  document.getElementById('status-text').textContent=text;
+  document.getElementById('status-dot').className='status-dot'+(type==='offline'?' offline':'');
+}
+
+function showToast(msg, type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast '+(type||'');
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+function showModal(type){
+  const titles={keyboard:'Keyboard Shortcuts'};
+  const bodies={keyboard:`
+    <b>Enter</b> — Parse string<br>
+    <b>→</b> — Step forward<br>
+    <b>←</b> — Step back<br>
+    <b>Ctrl+Enter</b> — Run all steps<br>
+    <b>Esc</b> — Reset<br>
+    <b>Ctrl+G</b> — Generate strings<br>
+    <b>Ctrl+B</b> — Run batch<br>
+    <b>1-9</b> — Switch tabs`};
+  document.getElementById('modal-title').textContent=titles[type]||'Info';
+  document.getElementById('modal-body').innerHTML=bodies[type]||'';
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('show');}
+
+// ══════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════════════
+document.addEventListener('keydown',e=>{
+  const target=e.target;
+  const inInput=target.tagName==='INPUT'||target.tagName==='TEXTAREA';
+  if(e.key==='Escape'){closeModal();return;}
+  if(inInput&&e.key==='Enter'&&!e.ctrlKey){if(target.id==='input-str'){e.preventDefault();runCYK();}return;}
+  if(inInput)return;
+  if(e.key==='ArrowRight'){e.preventDefault();stepFwd();}
+  if(e.key==='ArrowLeft'){e.preventDefault();stepBack();}
+  if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();runAll();}
+  if(e.key==='Escape'){resetRun();}
+  if(e.ctrlKey&&e.key==='g'){e.preventDefault();generateStrings();}
+  if(e.ctrlKey&&e.key==='b'){e.preventDefault();runBatch();}
+  const tabs=['table','tree','deriv','cnfpanel','gen','grammar','batch','complexity','history','share'];
+  if(!isNaN(e.key)&&+e.key>=1&&+e.key<=tabs.length){switchTab(tabs[+e.key-1]);}
+});
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+document.getElementById('session-id') && (document.getElementById('session-id').textContent = sessionId);
+document.getElementById('status-session').textContent = 'session: '+sessionId.slice(-6);
+checkBackend();
+loadPreset('anbn');
+document.getElementById('progress-wrap').style.display='block';
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "name": "cyk-parser-pro",
+  "version": "2.0.0",
+  "description": "CYK Parser Pro — Full-stack edition",
+  "scripts": {
+    "install:all": "npm install && cd frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "nodemon backend/server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "node backend/server.js",
+    "lint": "eslint backend/**/*.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  }
+}
