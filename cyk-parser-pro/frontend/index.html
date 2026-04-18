@@ -274,12 +274,9 @@ canvas{max-width:100%}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
-@media(max-width:820px){
-  .layout{grid-template-columns:1fr}
-  .sidebar{height:auto;max-height:none;position:static;overflow-y:visible}
-  .main{height:auto;min-height:60vh}
-  body{overflow:auto}
-}
+@media(max-width:820px){.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+.sidebar{height:auto;max-height:45vh;position:static}
+.main{height:55vh}}
 </style>
 </head>
 <body>
@@ -698,7 +695,7 @@ function getRules(){
 async function convertToCNF(){
   const rs=getRules(), start0=document.getElementById('start-sym').value.trim()||'S';
 
-  if(BACKEND_AVAILABLE){
+  if(false && BACKEND_AVAILABLE){
     try {
       const resp = await fetch(API+'/cnf',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({rules:rs,startSymbol:start0})});
@@ -820,7 +817,7 @@ async function runCYK(){
   setBtnLoading(true);
   steps=[]; curStep=0; allTrees=[]; curTreeIdx=0; cnfLog=[]; dpFinal=null; bpFinal=null;
 
-  if(BACKEND_AVAILABLE){
+  if(false && BACKEND_AVAILABLE){
     try {
       const resp = await fetch(API+'/parse',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({rules:rs,startSymbol:startSym,input:inputStr,sessionId})});
@@ -979,12 +976,11 @@ function renderTable(dp,hi,hj,done,fi){
       const isTop=done&&i===0&&j===n-1;
       const isActive=i===hi&&j===hj;
       let cls='';
-      const topCell=dp[0][n-1];
-      if(isTop) cls=(Array.isArray(topCell)?topCell.includes(startSym):topCell.has(startSym))?'acc':'rej';
+      const topCell=dp[0][n-1];if(isTop) cls=(Array.isArray(topCell)?topCell.includes(startSym):topCell.has(startSym))?'acc':'rej';
       else if(isActive&&fi>=0&&content) cls='fired-cell';
       else if(isActive) cls='active';
       else if(content) cls='filled';
-      const syms=encodeURIComponent(JSON.stringify({syms:[...dp[i][j]],i,j}));
+      const cellArr=Array.isArray(dp[i][j])?dp[i][j]:[...dp[i][j]];const syms=encodeURIComponent(JSON.stringify({syms:cellArr,i,j}));
       h+=`<td class="${cls}" onmouseenter="showCellTooltip(event,'${syms}')" onmouseleave="hideCellTooltip()">${content||''}</td>`;
     }
     h+=`</tr>`;
@@ -1169,7 +1165,7 @@ async function generateStrings(){
   if(!rs.length){document.getElementById('gen-grid').innerHTML='<div class="gen-empty">Add grammar rules first.</div>';return;}
 
   let strings=[];
-  if(BACKEND_AVAILABLE){
+  if(false && BACKEND_AVAILABLE){
     try {
       const resp=await fetch(API+'/generate',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({rules:rs,startSymbol:st,maxLength:maxLen,limit})});
@@ -1223,7 +1219,7 @@ async function runBatch(){
   const inputs=raw.split('\n').map(s=>s.trim()).filter(Boolean);
 
   let results=[];
-  if(BACKEND_AVAILABLE){
+  if(false && BACKEND_AVAILABLE){
     try{
       const resp=await fetch(API+'/batch',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({rules:rs,startSymbol:start,inputs})});
@@ -1268,7 +1264,7 @@ async function runComplexity(){
   if(!rs.length||!input){document.getElementById('cplx-formula').textContent='Add rules and input first.';return;}
 
   let data=null;
-  if(BACKEND_AVAILABLE){
+  if(false && BACKEND_AVAILABLE){
     try{
       const resp=await fetch(API+'/complexity',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({rules:rs,startSymbol:start,input})});
@@ -1366,7 +1362,7 @@ async function shareGrammar(){
   switchTab('share');
   const rs=getRules(),start=document.getElementById('start-sym').value.trim()||'S';
 
-  if(BACKEND_AVAILABLE){
+  if(false && BACKEND_AVAILABLE){
     try{
       const resp=await fetch(API+'/share',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({rules:rs,startSymbol:start,name:'My Grammar'})});
