@@ -975,11 +975,12 @@ function renderTable(dp,hi,hj,done,fi){
     h+=`<tr><td class="rl">i=${i+1}</td>`;
     for(let j=0;j<n;j++){
       if(j<i){h+=`<td class="ec"></td>`;continue;}
-      const content=[...dp[i][j]].join(', ');
+      const content=Array.isArray(dp[i][j])?dp[i][j].join(', '):[...dp[i][j]].join(', ');
       const isTop=done&&i===0&&j===n-1;
       const isActive=i===hi&&j===hj;
       let cls='';
-      if(isTop) cls=dp[0][n-1].has(startSym)?'acc':'rej';
+      const topCell=dp[0][n-1];
+      if(isTop) cls=(Array.isArray(topCell)?topCell.includes(startSym):topCell.has(startSym))?'acc':'rej';
       else if(isActive&&fi>=0&&content) cls='fired-cell';
       else if(isActive) cls='active';
       else if(content) cls='filled';
