@@ -274,9 +274,12 @@ canvas{max-width:100%}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
-@media(max-width:820px){.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}
-.sidebar{height:auto;max-height:45vh;position:static}
-.main{height:55vh}}
+@media(max-width:820px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{height:auto;max-height:none;position:static;overflow-y:visible}
+  .main{height:auto;min-height:60vh}
+  body{overflow:auto}
+}
 </style>
 </head>
 <body>
